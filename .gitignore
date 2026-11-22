@@ -1,0 +1,5 @@
+.env
+.wrangler
+caddy_data
+caddy_config
+.DS_Store

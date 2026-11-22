@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  buzzer-backend:
+    build:
+      context: ../../buzzer-media-backend
+      dockerfile: ../buzzer-media-infra/vps/Dockerfile.backend
+    restart: always
+    environment:
+      - PORT=8080
+      - RUST_LOG=info
+    expose:
+      - "8080"
+    networks:
+      - buzzer-net
+
+  buzzer-web:
+    build:
+      context: ../../buzzer-media-frontend-web-apps
+      dockerfile: ../buzzer-media-infra/vps/Dockerfile.frontend
+    restart: always
+    expose:
+      - "80"
+    networks:
+      - buzzer-net
+
+  buzzer-admin:
+    build:
+      context: ../../buzzer-media-frontend-admin-panel
+      dockerfile: ../buzzer-media-infra/vps/Dockerfile.admin
+    restart: always
+    expose:
+      - "80"
+    networks:
+      - buzzer-net
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - buzzer-backend
+      - buzzer-web
+      - buzzer-admin
+    networks:
+      - buzzer-net
+
+networks:
+  buzzer-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

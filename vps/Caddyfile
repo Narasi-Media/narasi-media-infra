@@ -1,16 +1,16 @@
 # Caddy Reverse Proxy with Auto-HTTPS (Let's Encrypt)
 
 # Client Web App Domain
-buzzer.domain.com {
-    reverse_proxy buzzer-web:80
+narasi.domain.com {
+    reverse_proxy narasi-web:80
 }
 
 # Admin Panel Subdomain
-admin.buzzer.domain.com {
-    reverse_proxy buzzer-admin:80
+admin.narasi.domain.com {
+    reverse_proxy narasi-admin:80
 }
 
 # Backend API Subdomain
-api.buzzer.domain.com {
-    reverse_proxy buzzer-backend:8080
+api.narasi.domain.com {
+    reverse_proxy narasi-backend:8080
 }

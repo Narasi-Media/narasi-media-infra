@@ -1,5 +1,5 @@
 /**
- * Cloudflare Worker Gateway for Buzzer Media Platform
+ * Cloudflare Worker Gateway for Narasi Media Platform
  * Routes requests to D1 database and SMM provider API on Cloudflare Free Tier
  */
 

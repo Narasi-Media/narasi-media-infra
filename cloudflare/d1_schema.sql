@@ -1,4 +1,4 @@
--- Cloudflare D1 (SQLite) Schema for Buzzer Media Platform
+-- Cloudflare D1 (SQLite) Schema for Narasi Media Platform
 
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,

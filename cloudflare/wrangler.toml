@@ -1,18 +1,19 @@
-name = "buzzer-media-api"
+name = "narasi-media-api"
 main = "worker.js"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "8c51473ea56232160062c80c1334b2a7"
 
 # Cloudflare D1 Database (Free Tier)
 [[d1_databases]]
 binding = "DB"
-database_name = "buzzer-media-prod"
+database_name = "narasi-media-prod"
 database_id = "00000000-0000-0000-0000-000000000000"
 
 # Cloudflare R2 Bucket for Manual QRIS Proof Uploads (Free Tier 10GB)
 [[r2_buckets]]
 binding = "RECEIPTS_BUCKET"
-bucket_name = "buzzer-media-receipts"
+bucket_name = "narasi-media-receipts"
 
 # Cloudflare KV for Session Cache & Rate Limiting (Free Tier 100k reads/day)
 [[kv_namespaces]]

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Deploying Buzzer Media to Standalone VPS via Docker Compose..."
+echo "🚀 Deploying Narasi Media to Standalone VPS via Docker Compose..."
 
 cd "$(dirname "$0")/../vps"
 

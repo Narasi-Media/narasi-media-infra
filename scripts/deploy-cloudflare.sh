@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Deploying Buzzer Media to Cloudflare Workers (Free Tier)..."
+echo "🚀 Deploying Narasi Media to Cloudflare Workers (Free Tier)..."
 
 cd "$(dirname "$0")/../cloudflare"
 
@@ -12,7 +12,7 @@ if ! command -v wrangler &> /dev/null; then
 fi
 
 echo "📦 Applying D1 migrations..."
-wrangler d1 execute buzzer-media-prod --file=./d1_schema.sql
+wrangler d1 execute narasi-media-prod --file=./d1_schema.sql
 
 echo "⚡ Deploying Worker..."
 wrangler deploy

@@ -1,10 +1,10 @@
 version: '3.8'
 
 services:
-  buzzer-backend:
+  narasi-backend:
     build:
-      context: ../../buzzer-media-backend
-      dockerfile: ../buzzer-media-infra/vps/Dockerfile.backend
+      context: ../../narasi-media-backend
+      dockerfile: ../narasi-media-infra/vps/Dockerfile.backend
     restart: always
     environment:
       - PORT=8080
@@ -12,27 +12,27 @@ services:
     expose:
       - "8080"
     networks:
-      - buzzer-net
+      - narasi-net
 
-  buzzer-web:
+  narasi-web:
     build:
-      context: ../../buzzer-media-frontend-web-apps
-      dockerfile: ../buzzer-media-infra/vps/Dockerfile.frontend
+      context: ../../narasi-media-frontend-web-apps
+      dockerfile: ../narasi-media-infra/vps/Dockerfile.frontend
     restart: always
     expose:
       - "80"
     networks:
-      - buzzer-net
+      - narasi-net
 
-  buzzer-admin:
+  narasi-admin:
     build:
-      context: ../../buzzer-media-frontend-admin-panel
-      dockerfile: ../buzzer-media-infra/vps/Dockerfile.admin
+      context: ../../narasi-media-frontend-admin-panel
+      dockerfile: ../narasi-media-infra/vps/Dockerfile.admin
     restart: always
     expose:
       - "80"
     networks:
-      - buzzer-net
+      - narasi-net
 
   caddy:
     image: caddy:2-alpine
@@ -45,14 +45,14 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - buzzer-backend
-      - buzzer-web
-      - buzzer-admin
+      - narasi-backend
+      - narasi-web
+      - narasi-admin
     networks:
-      - buzzer-net
+      - narasi-net
 
 networks:
-  buzzer-net:
+  narasi-net:
     driver: bridge
 
 volumes:

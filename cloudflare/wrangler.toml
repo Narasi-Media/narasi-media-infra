@@ -8,17 +8,17 @@ account_id = "8c51473ea56232160062c80c1334b2a7"
 [[d1_databases]]
 binding = "DB"
 database_name = "narasi-media-prod"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "16f3733c-e62d-4167-86a5-a5efddd77f4e"
 
-# Cloudflare R2 Bucket for Manual QRIS Proof Uploads (Free Tier 10GB)
-[[r2_buckets]]
-binding = "RECEIPTS_BUCKET"
-bucket_name = "narasi-media-receipts"
+# Cloudflare R2 Bucket for Manual QRIS Proof Uploads (Enable R2 in Cloudflare Dashboard to activate)
+# [[r2_buckets]]
+# binding = "RECEIPTS_BUCKET"
+# bucket_name = "narasi-media-receipts"
 
 # Cloudflare KV for Session Cache & Rate Limiting (Free Tier 100k reads/day)
 [[kv_namespaces]]
 binding = "KV_CACHE"
-id = "00000000000000000000000000000000"
+id = "8eabacc5d73d487d8ac3bd5183109407"
 
 [vars]
 ENVIRONMENT = "production"

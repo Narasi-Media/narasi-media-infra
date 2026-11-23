@@ -7,11 +7,14 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // CORS Headers
+    // Security & CORS Headers
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
     };
 
     if (request.method === 'OPTIONS') {
@@ -136,6 +139,10 @@ export default {
         if (request.method === 'POST') {
           const body = await request.json();
           const { user_id, service_id, target, quantity, custom_comments } = body;
+
+          if (!target || typeof target !== 'string' || !target.trim() || target.length > 500) {
+            return json({ success: false, error: 'Target link/username tidak valid (wajib diisi, maksimal 500 karakter)' }, 400);
+          }
 
           let user, service;
           if (isSupabase) {

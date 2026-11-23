@@ -179,7 +179,8 @@ export default {
             return json({ success: false, error: `Saldo tidak mencukupi (Kurang Rp ${(totalPrice - user.balance).toLocaleString('id-ID')})` }, 400);
           }
 
-          const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
+          const isDemoOrder = Boolean(body.is_demo) || user_id.toLowerCase().includes('demo') || user_id.toLowerCase() === 'regiami';
+          const orderId = (isDemoOrder ? 'DEMO-ORD-' : 'ORD-') + Math.floor(100000 + Math.random() * 900000);
           const now = new Date().toISOString();
 
           if (isSupabase) {
@@ -190,7 +191,7 @@ export default {
               body: JSON.stringify({ balance: user.balance - totalPrice, updated_at: now }),
             });
 
-            // Insert order
+            // Insert order with demo flagging
             await fetch(`${env.SUPABASE_URL}/rest/v1/orders`, {
               method: 'POST',
               headers: sbHeaders,
@@ -198,11 +199,11 @@ export default {
                 id: orderId,
                 user_id: user.id,
                 service_id: service.id,
-                target,
+                target: isDemoOrder && !target.startsWith('[DEMO]') ? `[DEMO] ${target}` : target,
                 quantity: qty,
                 unit_price: service.price_user,
                 total_price: totalPrice,
-                status: 'Pending',
+                status: isDemoOrder ? 'Pending (Demo)' : 'Pending',
                 created_at: now,
                 updated_at: now,
               }),
@@ -213,8 +214,8 @@ export default {
                 .bind(totalPrice, now, user.id),
               env.DB.prepare(
                 `INSERT INTO orders (id, user_id, service_id, target, quantity, price_per_k, total_price, custom_comments, status, created_at, updated_at) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
-              ).bind(orderId, user.id, service.id, target, qty, service.price_user, totalPrice, custom_comments || null, now, now)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              ).bind(orderId, user.id, service.id, target, qty, service.price_user, totalPrice, custom_comments || null, isDemoOrder ? 'Pending (Demo)' : 'pending', now, now)
             ]);
           }
 
@@ -266,7 +267,8 @@ export default {
             return json({ success: false, error: `User ${user_id} tidak ditemukan` }, 404);
           }
 
-          const depositId = 'DEP-' + Math.floor(100000 + Math.random() * 900000);
+          const isDemoDeposit = Boolean(body.is_demo) || user_id.toLowerCase().includes('demo') || user_id.toLowerCase() === 'regiami';
+          const depositId = (isDemoDeposit ? 'DEMO-DEP-' : 'DEP-') + Math.floor(100000 + Math.random() * 900000);
           const reqAmount = parseInt(amount);
           const uniqueCode = Math.floor(100 + Math.random() * 900);
           const totalToPay = reqAmount + uniqueCode;
@@ -284,11 +286,12 @@ export default {
                 requested_amount: reqAmount,
                 unique_code: uniqueCode,
                 total_to_pay: totalToPay,
-                balance_credited: credited,
-                status: 'Pending',
-                sender_name: sender_name || null,
+                credited_amount: credited,
+                status: isDemoDeposit ? 'WaitingVerification (Demo)' : (proof_image_url ? 'WaitingVerification' : 'Pending'),
+                sender_name: isDemoDeposit && sender_name ? `[DEMO] ${sender_name}` : (sender_name || (isDemoDeposit ? '[DEMO SIMULASI]' : null)),
                 proof_image_url: proof_image_url || null,
                 created_at: now,
+                updated_at: now,
               }),
             });
           } else {

@@ -23,3 +23,4 @@ id = "8eabacc5d73d487d8ac3bd5183109407"
 [vars]
 ENVIRONMENT = "production"
 BONUS_DEPOSIT_PERCENTAGE = "5.0"
+SUPABASE_URL = "https://ludajhsolkglttpnuajz.supabase.co"

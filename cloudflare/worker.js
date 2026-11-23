@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker Gateway for Narasi Media Platform
- * Routes requests to D1 database on Cloudflare Free Tier
+ * Routes requests to Supabase PostgreSQL Database with Cloudflare D1 fallback
  */
 
 export default {
@@ -24,12 +24,21 @@ export default {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
 
+    const isSupabase = !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY);
+    const sbHeaders = isSupabase ? {
+      'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+      'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    } : null;
+
     try {
       // Root info
       if (url.pathname === '/' || url.pathname === '/api') {
         return json({
           name: 'Narasi Media API',
           version: '1.0.0',
+          database_driver: isSupabase ? 'Supabase PostgreSQL' : 'Cloudflare D1',
           runtime: 'cloudflare_workers',
           endpoints: [
             '/health',
@@ -44,71 +53,111 @@ export default {
 
       // Health check
       if (url.pathname === '/health') {
-        return json({ status: 'ok', runtime: 'cloudflare_workers', service: 'narasi-media-api' });
+        return json({
+          status: 'ok',
+          runtime: 'cloudflare_workers',
+          database: isSupabase ? 'supabase_postgres' : 'cloudflare_d1',
+          service: 'narasi-media-api'
+        });
       }
 
       // Categories
       if (url.pathname === '/api/categories') {
-        const { results } = await env.DB.prepare('SELECT * FROM categories ORDER BY sort_order ASC').all();
-        return json({ success: true, data: results });
+        if (isSupabase) {
+          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/categories?select=*&order=sort_order.asc`, { headers: sbHeaders });
+          const data = await res.json();
+          return json({ success: true, data });
+        } else {
+          const { results } = await env.DB.prepare('SELECT * FROM categories ORDER BY sort_order ASC').all();
+          return json({ success: true, data: results });
+        }
       }
 
       // Services
       if (url.pathname === '/api/services') {
         const catId = url.searchParams.get('category_id');
-        let query = 'SELECT * FROM services WHERE is_active = 1';
-        let params = [];
-        if (catId) {
-          query += ' AND category_id = ?';
-          params.push(catId);
+        if (isSupabase) {
+          let sUrl = `${env.SUPABASE_URL}/rest/v1/services?select=*&is_active=eq.true`;
+          if (catId) sUrl += `&category_id=eq.${catId}`;
+          const res = await fetch(sUrl, { headers: sbHeaders });
+          const data = await res.json();
+          return json({ success: true, data });
+        } else {
+          let query = 'SELECT * FROM services WHERE is_active = 1';
+          let params = [];
+          if (catId) {
+            query += ' AND category_id = ?';
+            params.push(catId);
+          }
+          const { results } = await env.DB.prepare(query).bind(...params).all();
+          return json({ success: true, data: results });
         }
-        const { results } = await env.DB.prepare(query).bind(...params).all();
-        return json({ success: true, data: results });
       }
 
       // User profile
       if (url.pathname === '/api/users/profile') {
         const username = url.searchParams.get('username') || 'regiami';
-        const user = await env.DB.prepare('SELECT id, username, full_name, email, whatsapp_number, balance, role FROM users WHERE username = ? OR id = ?')
-          .bind(username, username)
-          .first();
-        if (!user) {
-          return json({ success: false, error: 'User tidak ditemukan' }, 404);
+        if (isSupabase) {
+          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/users?select=id,username,full_name,email,whatsapp_number,balance,role&username=ilike.${username}`, { headers: sbHeaders });
+          const users = await res.json();
+          if (!users || users.length === 0) {
+            return json({ success: false, error: 'User tidak ditemukan' }, 404);
+          }
+          return json({ success: true, data: users[0] });
+        } else {
+          const user = await env.DB.prepare('SELECT id, username, full_name, email, whatsapp_number, balance, role FROM users WHERE username = ? OR id = ?')
+            .bind(username, username)
+            .first();
+          if (!user) {
+            return json({ success: false, error: 'User tidak ditemukan' }, 404);
+          }
+          return json({ success: true, data: user });
         }
-        return json({ success: true, data: user });
       }
 
       // Orders
       if (url.pathname === '/api/orders') {
         if (request.method === 'GET') {
-          const userId = url.searchParams.get('user_id') || 'regiami';
-          const { results } = await env.DB.prepare(
-            `SELECT o.*, s.name as service_name 
-             FROM orders o 
-             LEFT JOIN services s ON o.service_id = s.id 
-             ORDER BY o.created_at DESC LIMIT 50`
-          ).all();
-          return json({ success: true, data: results });
+          if (isSupabase) {
+            const res = await fetch(`${env.SUPABASE_URL}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, { headers: sbHeaders });
+            const data = await res.json();
+            return json({ success: true, data });
+          } else {
+            const { results } = await env.DB.prepare(
+              `SELECT o.*, s.name as service_name 
+               FROM orders o 
+               LEFT JOIN services s ON o.service_id = s.id 
+               ORDER BY o.created_at DESC LIMIT 50`
+            ).all();
+            return json({ success: true, data: results });
+          }
         }
 
         if (request.method === 'POST') {
           const body = await request.json();
           const { user_id, service_id, target, quantity, custom_comments } = body;
 
-          // Resolve user
-          const user = await env.DB.prepare('SELECT id, balance FROM users WHERE username = ? OR id = ?')
-            .bind(user_id, user_id)
-            .first();
+          let user, service;
+          if (isSupabase) {
+            const uRes = await fetch(`${env.SUPABASE_URL}/rest/v1/users?select=id,balance&username=ilike.${user_id}`, { headers: sbHeaders });
+            const uList = await uRes.json();
+            user = uList && uList[0];
+
+            const sRes = await fetch(`${env.SUPABASE_URL}/rest/v1/services?select=id,price_user,min_order,max_order&id=eq.${service_id}`, { headers: sbHeaders });
+            const sList = await sRes.json();
+            service = sList && sList[0];
+          } else {
+            user = await env.DB.prepare('SELECT id, balance FROM users WHERE username = ? OR id = ?')
+              .bind(user_id, user_id)
+              .first();
+            service = await env.DB.prepare('SELECT id, price_user, min_order, max_order FROM services WHERE id = ?')
+              .bind(service_id)
+              .first();
+          }
 
           if (!user) {
             return json({ success: false, error: `Entity dengan ID User ${user_id} tidak ditemukan` }, 404);
           }
-
-          // Service lookup
-          const service = await env.DB.prepare('SELECT id, price_user, min_order, max_order FROM services WHERE id = ?')
-            .bind(service_id)
-            .first();
-
           if (!service) {
             return json({ success: false, error: 'Layanan tidak ditemukan' }, 404);
           }
@@ -126,15 +175,41 @@ export default {
           const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
           const now = new Date().toISOString();
 
-          // Deduct balance and insert order
-          await env.DB.batch([
-            env.DB.prepare('UPDATE users SET balance = balance - ?, updated_at = ? WHERE id = ?')
-              .bind(totalPrice, now, user.id),
-            env.DB.prepare(
-              `INSERT INTO orders (id, user_id, service_id, target, quantity, price_per_k, total_price, custom_comments, status, created_at, updated_at) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
-            ).bind(orderId, user.id, service.id, target, qty, service.price_user, totalPrice, custom_comments || null, now, now)
-          ]);
+          if (isSupabase) {
+            // Deduct balance
+            await fetch(`${env.SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
+              method: 'PATCH',
+              headers: sbHeaders,
+              body: JSON.stringify({ balance: user.balance - totalPrice, updated_at: now }),
+            });
+
+            // Insert order
+            await fetch(`${env.SUPABASE_URL}/rest/v1/orders`, {
+              method: 'POST',
+              headers: sbHeaders,
+              body: JSON.stringify({
+                id: orderId,
+                user_id: user.id,
+                service_id: service.id,
+                target,
+                quantity: qty,
+                unit_price: service.price_user,
+                total_price: totalPrice,
+                status: 'Pending',
+                created_at: now,
+                updated_at: now,
+              }),
+            });
+          } else {
+            await env.DB.batch([
+              env.DB.prepare('UPDATE users SET balance = balance - ?, updated_at = ? WHERE id = ?')
+                .bind(totalPrice, now, user.id),
+              env.DB.prepare(
+                `INSERT INTO orders (id, user_id, service_id, target, quantity, price_per_k, total_price, custom_comments, status, created_at, updated_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+              ).bind(orderId, user.id, service.id, target, qty, service.price_user, totalPrice, custom_comments || null, now, now)
+            ]);
+          }
 
           return json({
             success: true,
@@ -155,17 +230,30 @@ export default {
       // Deposits
       if (url.pathname === '/api/deposits') {
         if (request.method === 'GET') {
-          const { results } = await env.DB.prepare('SELECT * FROM deposits ORDER BY created_at DESC LIMIT 50').all();
-          return json({ success: true, data: results });
+          if (isSupabase) {
+            const res = await fetch(`${env.SUPABASE_URL}/rest/v1/deposits?select=*&order=created_at.desc&limit=50`, { headers: sbHeaders });
+            const data = await res.json();
+            return json({ success: true, data });
+          } else {
+            const { results } = await env.DB.prepare('SELECT * FROM deposits ORDER BY created_at DESC LIMIT 50').all();
+            return json({ success: true, data: results });
+          }
         }
 
         if (request.method === 'POST') {
           const body = await request.json();
           const { user_id, method, amount, proof_image_url, sender_name } = body;
 
-          const user = await env.DB.prepare('SELECT id FROM users WHERE username = ? OR id = ?')
-            .bind(user_id, user_id)
-            .first();
+          let user;
+          if (isSupabase) {
+            const uRes = await fetch(`${env.SUPABASE_URL}/rest/v1/users?select=id&username=ilike.${user_id}`, { headers: sbHeaders });
+            const uList = await uRes.json();
+            user = uList && uList[0];
+          } else {
+            user = await env.DB.prepare('SELECT id FROM users WHERE username = ? OR id = ?')
+              .bind(user_id, user_id)
+              .first();
+          }
 
           if (!user) {
             return json({ success: false, error: `User ${user_id} tidak ditemukan` }, 404);
@@ -175,15 +263,33 @@ export default {
           const reqAmount = parseInt(amount);
           const uniqueCode = Math.floor(100 + Math.random() * 900);
           const totalToPay = reqAmount + uniqueCode;
-          const bonus = Math.round(reqAmount * 0.05); // 5% bonus
-          const credited = reqAmount + bonus;
+          const credited = reqAmount;
           const now = new Date().toISOString();
-          const expiredAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-          await env.DB.prepare(
-            `INSERT INTO deposits (id, user_id, method, requested_amount, unique_code, total_to_pay, balance_credited, proof_image_url, sender_name, status, created_at, updated_at, expired_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`
-          ).bind(depositId, user.id, method, reqAmount, uniqueCode, totalToPay, credited, proof_image_url || null, sender_name || null, now, now, expiredAt).run();
+          if (isSupabase) {
+            await fetch(`${env.SUPABASE_URL}/rest/v1/deposits`, {
+              method: 'POST',
+              headers: sbHeaders,
+              body: JSON.stringify({
+                id: depositId,
+                user_id: user.id,
+                method: method || 'manual_qris',
+                requested_amount: reqAmount,
+                unique_code: uniqueCode,
+                total_to_pay: totalToPay,
+                balance_credited: credited,
+                status: 'Pending',
+                sender_name: sender_name || null,
+                proof_image_url: proof_image_url || null,
+                created_at: now,
+              }),
+            });
+          } else {
+            await env.DB.prepare(
+              `INSERT INTO deposits (id, user_id, method, requested_amount, unique_code, total_to_pay, balance_credited, proof_image_url, sender_name, status, created_at, updated_at, expired_at) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`
+            ).bind(depositId, user.id, method, reqAmount, uniqueCode, totalToPay, credited, proof_image_url || null, sender_name || null, now, now, now).run();
+          }
 
           return json({
             success: true,
@@ -196,7 +302,6 @@ export default {
               total_to_pay: totalToPay,
               balance_credited: credited,
               status: 'pending',
-              expired_at: expiredAt,
             },
           });
         }

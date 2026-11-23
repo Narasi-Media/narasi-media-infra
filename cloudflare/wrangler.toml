@@ -10,11 +10,6 @@ binding = "DB"
 database_name = "narasi-media-prod"
 database_id = "16f3733c-e62d-4167-86a5-a5efddd77f4e"
 
-# Cloudflare R2 Bucket for Manual QRIS Proof Uploads (Enable R2 in Cloudflare Dashboard to activate)
-# [[r2_buckets]]
-# binding = "RECEIPTS_BUCKET"
-# bucket_name = "narasi-media-receipts"
-
 # Cloudflare KV for Session Cache & Rate Limiting (Free Tier 100k reads/day)
 [[kv_namespaces]]
 binding = "KV_CACHE"
@@ -24,3 +19,35 @@ id = "8eabacc5d73d487d8ac3bd5183109407"
 ENVIRONMENT = "production"
 BONUS_DEPOSIT_PERCENTAGE = "5.0"
 SUPABASE_URL = "https://ludajhsolkglttpnuajz.supabase.co"
+
+[env.production]
+name = "narasi-media-api"
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "narasi-media-prod"
+database_id = "16f3733c-e62d-4167-86a5-a5efddd77f4e"
+
+[[env.production.kv_namespaces]]
+binding = "KV_CACHE"
+id = "8eabacc5d73d487d8ac3bd5183109407"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+BONUS_DEPOSIT_PERCENTAGE = "5.0"
+SUPABASE_URL = "https://ludajhsolkglttpnuajz.supabase.co"
+
+[env.development]
+name = "narasi-media-api-dev"
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "narasi-media-prod"
+database_id = "16f3733c-e62d-4167-86a5-a5efddd77f4e"
+
+[[env.development.kv_namespaces]]
+binding = "KV_CACHE"
+id = "8eabacc5d73d487d8ac3bd5183109407"
+
+[env.development.vars]
+ENVIRONMENT = "development"
+BONUS_DEPOSIT_PERCENTAGE = "5.0"
+SUPABASE_URL = "https://kgiecighyibpoiiujjup.supabase.co"

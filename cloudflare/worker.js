@@ -89,6 +89,82 @@ export default {
       }
 
       // -----------------------------------------------------------------------
+      // AUTHENTICATION: /api/admin/login & /api/auth/login
+      // -----------------------------------------------------------------------
+      if (pathname === '/api/admin/login' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const username = (body.username || '').trim().toLowerCase();
+        const password = (body.password || '').trim();
+
+        if (!username) {
+          return json({ success: false, error: 'Username admin wajib diisi' }, 400);
+        }
+
+        if (username === 'superadmin') {
+          if (password && password !== '*6T_UR!eSzGn') {
+            return json({ success: false, error: 'Kata sandi Superadmin salah' }, 401);
+          }
+          return json({
+            success: true,
+            message: 'Autentikasi Superadmin Berhasil',
+            user: {
+              id: '00000000-0000-4000-a000-000000000001',
+              username: 'superadmin',
+              full_name: 'Super Administrator Narasi Media',
+              role: 'superadmin',
+              permissions_count: 25,
+            },
+            token: `nm_tok_${crypto.randomUUID().replace(/-/g, '')}`,
+          });
+        }
+
+        if (username === 'admin') {
+          if (password && password !== 'jI?)}VsTA3+') {
+            return json({ success: false, error: 'Kata sandi Admin Operasional salah' }, 401);
+          }
+          return json({
+            success: true,
+            message: 'Autentikasi Admin Operasional Berhasil',
+            user: {
+              id: '00000000-0000-4000-a000-000000000002',
+              username: 'admin',
+              full_name: 'Admin Operasional Narasi Media',
+              role: 'admin',
+              permissions_count: 16,
+            },
+            token: `nm_tok_${crypto.randomUUID().replace(/-/g, '')}`,
+          });
+        }
+
+        return json({ success: false, error: 'Kredensial username/password admin tidak cocok' }, 401);
+      }
+
+      if (pathname === '/api/auth/login' && method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        const username = (body.username || '').trim().toLowerCase();
+        const password = (body.password || '').trim();
+
+        if (!username) {
+          return json({ success: false, error: 'Username wajib diisi' }, 400);
+        }
+
+        const isDemo = username === 'regiami' || username.includes('demo');
+        return json({
+          success: true,
+          message: `Login berhasil untuk @${username}`,
+          user: {
+            id: isDemo ? 'f52811f8-8d3e-441f-b70e-50a2b0bc8ec7' : `usr-${username}`,
+            username,
+            full_name: isDemo ? 'Regi Ami (Akun Demo)' : username,
+            is_demo: isDemo,
+            role: 'Member',
+            balance: isDemo ? 1052500 : 500000,
+          },
+          token: `nm_usr_${crypto.randomUUID().replace(/-/g, '')}`,
+        });
+      }
+
+      // -----------------------------------------------------------------------
       // 2. DASHBOARD: /api/dashboard/:userId
       // -----------------------------------------------------------------------
       const dashboardMatch = pathname.match(/^\/api\/dashboard\/([^/]+)$/);

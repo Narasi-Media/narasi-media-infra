@@ -1,0 +1,70 @@
+name: Supabase Free Plan Keep-Alive Daily Ping
+
+on:
+  schedule:
+    # Runs everyday at 02:00 UTC (09:00 WIB) to keep Supabase projects active
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target to ping'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cloudflare_worker_api
+          - supabase_prod_direct
+          - supabase_dev_direct
+
+jobs:
+  keepalive:
+    name: Supabase Activity & Healthcheck Ping
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Cloudflare Worker API Keep-Alive Endpoint
+        if: ${{ inputs.target == 'all' || inputs.target == 'cloudflare_worker_api' || github.event_name == 'schedule' }}
+        run: |
+          echo "=== 1. Pinging Cloudflare Worker Keep-Alive Endpoint ==="
+          RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}s\n" https://narasi-media-api.narasi-media.workers.dev/api/cron/keepalive)
+          echo "$RESP"
+          STATUS=$(echo "$RESP" | grep "HTTP_STATUS" | cut -d: -f2)
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "✅ Cloudflare Worker API Keep-Alive succeeded with HTTP $STATUS"
+          else
+            echo "⚠️ Warning: Received HTTP $STATUS"
+          fi
+
+      - name: Direct Ping to Supabase PROD REST API
+        if: ${{ inputs.target == 'all' || inputs.target == 'supabase_prod_direct' || github.event_name == 'schedule' }}
+        run: |
+          echo "=== 2. Pinging Supabase PROD REST API (Narasi Media) ==="
+          PROD_URL="https://ludajhsolkglttpnuajz.supabase.co/rest/v1/services?select=id&limit=1"
+          RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}s\n" \
+            -H "apikey: ${{ secrets.SUPABASE_PROD_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1ZGFqaHNvbGtnbHR0cG51YWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MjgxNTgsImV4cCI6MjExMTAwNDE1OH0.ae4G8QiOJnnwGl-Qd5Nx1ROta4eY4vbGXKaayhSF51g' }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_PROD_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1ZGFqaHNvbGtnbHR0cG51YWp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MjgxNTgsImV4cCI6MjExMTAwNDE1OH0.ae4G8QiOJnnwGl-Qd5Nx1ROta4eY4vbGXKaayhSF51g' }}" \
+            "$PROD_URL")
+          echo "$RESP"
+          STATUS=$(echo "$RESP" | grep "HTTP_STATUS" | cut -d: -f2)
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "✅ Supabase PROD activity registered successfully (HTTP $STATUS)"
+          else
+            echo "⚠️ Warning: Received HTTP $STATUS"
+          fi
+
+      - name: Direct Ping to Supabase DEV REST API
+        if: ${{ inputs.target == 'all' || inputs.target == 'supabase_dev_direct' || github.event_name == 'schedule' }}
+        run: |
+          echo "=== 3. Pinging Supabase DEV REST API ==="
+          DEV_URL="https://kgiecighyibpoiiujjup.supabase.co/rest/v1/services?select=id&limit=1"
+          RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}s\n" \
+            -H "apikey: ${{ secrets.SUPABASE_DEV_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnaWVjaWdoeWlicG9paXVqanVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MjgyNjAsImV4cCI6MjExMTAwNDI2MH0.73VFkBM5BZqdC9VVsiV8AqEpN66cw84KlL2QCxjjon0' }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_DEV_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtnaWVjaWdoeWlicG9paXVqanVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0MjgyNjAsImV4cCI6MjExMTAwNDI2MH0.73VFkBM5BZqdC9VVsiV8AqEpN66cw84KlL2QCxjjon0' }}" \
+            "$DEV_URL")
+          echo "$RESP"
+          STATUS=$(echo "$RESP" | grep "HTTP_STATUS" | cut -d: -f2)
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "✅ Supabase DEV activity registered successfully (HTTP $STATUS)"
+          else
+            echo "⚠️ Warning: Received HTTP $STATUS"
+          fi

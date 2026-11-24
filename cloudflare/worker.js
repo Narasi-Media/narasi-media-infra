@@ -89,6 +89,64 @@ export default {
       }
 
       // -----------------------------------------------------------------------
+      // 1.1 SUPABASE FREE-PLAN KEEP-ALIVE & ACTIVITY PING
+      // Prevents 7-day inactivity project pause on Supabase Free Tier
+      // -----------------------------------------------------------------------
+      if (pathname === '/api/cron/keepalive' || pathname === '/api/health/supabase' || pathname === '/api/keepalive') {
+        const startTime = Date.now();
+        let pingResult = {
+          success: false,
+          database: isSupabase ? 'supabase_postgres' : 'cloudflare_d1',
+          project_url: env.SUPABASE_URL || null,
+          latency_ms: 0,
+          timestamp: new Date().toISOString(),
+          record_count: 0,
+          message: '',
+          error: null,
+        };
+
+        if (isSupabase) {
+          try {
+            const sbRes = await fetch(`${env.SUPABASE_URL}/rest/v1/services?select=id,name&limit=2`, {
+              headers: sbHeaders,
+            });
+            pingResult.latency_ms = Date.now() - startTime;
+            if (sbRes.ok) {
+              const data = await sbRes.json();
+              pingResult.success = true;
+              pingResult.record_count = Array.isArray(data) ? data.length : 1;
+              pingResult.message = 'Supabase PostgreSQL is active. Activity registered successfully to protect Free Plan from inactivity pause.';
+            } else {
+              pingResult.error = `Supabase returned HTTP ${sbRes.status}`;
+            }
+          } catch (err) {
+            pingResult.error = err.message;
+            pingResult.latency_ms = Date.now() - startTime;
+          }
+        } else if (env.DB) {
+          try {
+            const d1Res = await env.DB.prepare('SELECT COUNT(*) as count FROM services').first();
+            pingResult.latency_ms = Date.now() - startTime;
+            pingResult.success = true;
+            pingResult.record_count = d1Res ? d1Res.count : 0;
+            pingResult.message = 'Cloudflare D1 active.';
+          } catch (err) {
+            pingResult.error = err.message;
+            pingResult.latency_ms = Date.now() - startTime;
+          }
+        }
+
+        if (env.KV_CACHE && pingResult.success) {
+          ctx?.waitUntil?.(env.KV_CACHE.put('supabase_last_keepalive', JSON.stringify({
+            ...pingResult,
+            source: 'http_request',
+          })));
+        }
+
+        return json(pingResult, pingResult.success ? 200 : 503);
+      }
+
+      // -----------------------------------------------------------------------
       // AUTHENTICATION: /api/admin/login & /api/auth/login
       // -----------------------------------------------------------------------
       if (pathname === '/api/admin/login' && method === 'POST') {
@@ -995,6 +1053,47 @@ export default {
         error: err.message,
         stack: err.stack,
       }, 500);
+    }
+  },
+
+  /**
+   * Cloudflare Cron Trigger (Runs automatically according to wrangler.toml triggers.crons)
+   * Guaranteed daily/frequent activity ping to Supabase to prevent Free Plan auto-pause
+   */
+  async scheduled(event, env, ctx) {
+    const isSupabase = !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY);
+    const timestamp = new Date().toISOString();
+    console.log(`[KEEP-ALIVE CRON] Scheduled trigger executed at ${timestamp}. Pattern: ${event.cron}`);
+
+    if (isSupabase) {
+      try {
+        const startTime = Date.now();
+        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/services?select=id&limit=1`, {
+          headers: {
+            'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+            'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+            'User-Agent': 'NarasiMedia-KeepAlive-Worker/1.0',
+          },
+        });
+        const latency = Date.now() - startTime;
+        console.log(`[KEEP-ALIVE CRON] Supabase Ping HTTP ${res.status} (${latency}ms) - Free Plan activity refreshed.`);
+
+        if (env.KV_CACHE) {
+          ctx?.waitUntil?.(env.KV_CACHE.put('supabase_last_keepalive', JSON.stringify({
+            timestamp,
+            status: res.status,
+            latency_ms: latency,
+            type: 'cron_scheduled',
+            cron: event.cron,
+            success: res.ok,
+          })));
+        }
+      } catch (err) {
+        console.error('[KEEP-ALIVE CRON] Supabase ping failed:', err);
+      }
+    } else if (env.DB) {
+      console.log('[KEEP-ALIVE CRON] Running D1 ping fallback...');
+      await env.DB.prepare('SELECT 1').run().catch(console.error);
     }
   },
 };
